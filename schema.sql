@@ -64,11 +64,9 @@ CREATE TABLE IF NOT EXISTS faostat_data (
     unit VARCHAR(50),
     flag VARCHAR(10),
     note TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (dataset_code) REFERENCES datasets(dataset_code),
-    FOREIGN KEY (area_code) REFERENCES areas(area_code),
-    FOREIGN KEY (item_code) REFERENCES items(item_code),
-    FOREIGN KEY (element_code) REFERENCES elements(element_code)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- Note: Foreign key constraints removed to allow flexible data import
+    -- The view still joins on these fields for querying
 );
 
 -- Create indexes for common query patterns
