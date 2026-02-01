@@ -109,44 +109,89 @@ def process_zip_file(zip_path, dataset_code=None):
         element_codes = [f for f in file_list if 'Elements.csv' in f]
         flags_file = [f for f in file_list if 'Flags.csv' in f]
 
-        # Extract dataset code from filename if not provided
+        # dataset_code should be provided by caller
         if not dataset_code:
-            dataset_code = main_csv.split('_')[0]
+            logger.error("Dataset code not provided - this is a bug!")
+            raise ValueError("Dataset code must be provided")
 
         conn = get_db_connection()
         cursor = conn.cursor()
         engine = get_sqlalchemy_engine()
 
-        # Load dimension tables
+        # Load dimension tables (with ON CONFLICT DO NOTHING for duplicates)
         if area_codes:
             logger.info("Loading area codes...")
-            df_areas = pd.read_csv(zip_ref.open(area_codes[0]))
-            df_areas.columns = ['area_code', 'm49_code', 'area_name']
-            df_areas.to_sql('areas', engine, if_exists='append', index=False, method='multi')
-            logger.info(f"Loaded {len(df_areas)} area codes")
+            try:
+                df_areas = pd.read_csv(zip_ref.open(area_codes[0]))
+                df_areas.columns = ['area_code', 'm49_code', 'area_name']
+                # Insert with ON CONFLICT handling
+                for _, row in df_areas.iterrows():
+                    cursor.execute("""
+                        INSERT INTO areas (area_code, m49_code, area_name)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (area_code) DO NOTHING
+                    """, (row['area_code'], row['m49_code'], row['area_name']))
+                conn.commit()
+                logger.info(f"Processed {len(df_areas)} area codes")
+            except Exception as e:
+                logger.warning(f"Error loading areas: {e}")
+                conn.rollback()
 
         if item_codes:
             logger.info("Loading item codes...")
-            df_items = pd.read_csv(zip_ref.open(item_codes[0]))
-            df_items['dataset_code'] = dataset_code
-            df_items.columns = ['item_code', 'cpc_code', 'item_name', 'dataset_code']
-            df_items.to_sql('items', engine, if_exists='append', index=False, method='multi')
-            logger.info(f"Loaded {len(df_items)} item codes")
+            try:
+                df_items = pd.read_csv(zip_ref.open(item_codes[0]))
+                df_items['dataset_code'] = dataset_code
+                df_items.columns = ['item_code', 'cpc_code', 'item_name', 'dataset_code']
+                # Insert with ON CONFLICT handling
+                for _, row in df_items.iterrows():
+                    cursor.execute("""
+                        INSERT INTO items (item_code, cpc_code, item_name, dataset_code)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (item_code) DO NOTHING
+                    """, (row['item_code'], row['cpc_code'], row['item_name'], row['dataset_code']))
+                conn.commit()
+                logger.info(f"Processed {len(df_items)} item codes")
+            except Exception as e:
+                logger.warning(f"Error loading items: {e}")
+                conn.rollback()
 
         if element_codes:
             logger.info("Loading element codes...")
-            df_elements = pd.read_csv(zip_ref.open(element_codes[0]))
-            df_elements['dataset_code'] = dataset_code
-            df_elements.columns = ['element_code', 'element_name', 'dataset_code']
-            df_elements.to_sql('elements', engine, if_exists='append', index=False, method='multi')
-            logger.info(f"Loaded {len(df_elements)} element codes")
+            try:
+                df_elements = pd.read_csv(zip_ref.open(element_codes[0]))
+                df_elements['dataset_code'] = dataset_code
+                df_elements.columns = ['element_code', 'element_name', 'dataset_code']
+                # Insert with ON CONFLICT handling
+                for _, row in df_elements.iterrows():
+                    cursor.execute("""
+                        INSERT INTO elements (element_code, element_name, dataset_code)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (element_code) DO NOTHING
+                    """, (row['element_code'], row['element_name'], row['dataset_code']))
+                conn.commit()
+                logger.info(f"Processed {len(df_elements)} element codes")
+            except Exception as e:
+                logger.warning(f"Error loading elements: {e}")
+                conn.rollback()
 
         if flags_file:
             logger.info("Loading flags...")
-            df_flags = pd.read_csv(zip_ref.open(flags_file[0]))
-            df_flags.columns = ['flag_code', 'flag_description']
-            df_flags.to_sql('flags', engine, if_exists='append', index=False, method='multi')
-            logger.info(f"Loaded {len(df_flags)} flags")
+            try:
+                df_flags = pd.read_csv(zip_ref.open(flags_file[0]))
+                df_flags.columns = ['flag_code', 'flag_description']
+                # Insert with ON CONFLICT handling
+                for _, row in df_flags.iterrows():
+                    cursor.execute("""
+                        INSERT INTO flags (flag_code, flag_description)
+                        VALUES (%s, %s)
+                        ON CONFLICT (flag_code) DO NOTHING
+                    """, (row['flag_code'], row['flag_description']))
+                conn.commit()
+                logger.info(f"Processed {len(df_flags)} flags")
+            except Exception as e:
+                logger.warning(f"Error loading flags: {e}")
+                conn.rollback()
 
         # Load main data in chunks to handle large files
         logger.info(f"Loading main data from {main_csv}...")
@@ -192,6 +237,22 @@ def find_all_zip_files(base_dir='.'):
                 zip_files.append(os.path.join(root, file))
     return zip_files
 
+def get_dataset_code_from_filename(zip_filename, datasets_metadata):
+    """Map a zip filename to its dataset code using metadata."""
+    # Extract base filename without path
+    base_name = os.path.basename(zip_filename)
+    base_name = base_name.replace('_E_All_Data_(Normalized).zip', '')
+
+    # Try to find matching dataset in metadata
+    for ds in datasets_metadata:
+        file_location = ds.get('FileLocation', '')
+        if base_name in file_location or file_location.endswith(f'{base_name}.zip'):
+            return ds['DatasetCode']
+
+    # Fallback: use first part of filename (won't work well but better than nothing)
+    logger.warning(f"Could not find dataset code for {zip_filename}, using filename prefix")
+    return base_name[:10]
+
 def main():
     """Main import process."""
     logger.info("Starting FAOSTAT data import process")
@@ -212,7 +273,10 @@ def main():
     for i, zip_file in enumerate(zip_files, 1):
         logger.info(f"Processing file {i}/{len(zip_files)}: {zip_file}")
         try:
-            process_zip_file(zip_file)
+            # Get proper dataset code from metadata
+            dataset_code = get_dataset_code_from_filename(zip_file, datasets)
+            logger.info(f"Dataset code: {dataset_code}")
+            process_zip_file(zip_file, dataset_code=dataset_code)
         except Exception as e:
             logger.error(f"Error processing {zip_file}: {e}")
             continue

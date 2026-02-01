@@ -6,7 +6,7 @@
 
 -- Datasets metadata table
 CREATE TABLE IF NOT EXISTS datasets (
-    dataset_code VARCHAR(10) PRIMARY KEY,
+    dataset_code VARCHAR(50) PRIMARY KEY,
     dataset_name TEXT NOT NULL,
     topic TEXT,
     description TEXT,
@@ -31,14 +31,14 @@ CREATE TABLE IF NOT EXISTS items (
     item_code INTEGER PRIMARY KEY,
     cpc_code VARCHAR(20),
     item_name TEXT NOT NULL,
-    dataset_code VARCHAR(10),
+    dataset_code VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS elements (
     element_code INTEGER PRIMARY KEY,
     element_name TEXT NOT NULL,
-    dataset_code VARCHAR(10),
+    dataset_code VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS flags (
 -- This will store data from all datasets in a normalized format
 CREATE TABLE IF NOT EXISTS faostat_data (
     id BIGSERIAL PRIMARY KEY,
-    dataset_code VARCHAR(10) NOT NULL,
+    dataset_code VARCHAR(50) NOT NULL,
     area_code INTEGER,
     item_code INTEGER,
     element_code INTEGER,
