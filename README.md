@@ -85,12 +85,18 @@ Note: Full import may take several hours depending on data volume.
 
 ### 6. Vanna AI Setup (Optional)
 
-Configure Vanna for natural language queries:
+Configure Vanna for natural language queries. Vanna 0.7 is self-hosted and only requires an OpenAI or Anthropic API key (no Vanna API key needed):
 
 ```bash
-# Add VANNA_API_KEY to .env first
+# Add OPENAI_API_KEY or ANTHROPIC_API_KEY to .env first
 python vanna_setup.py
 ```
+
+The setup script will:
+- Train Vanna on the database schema
+- Provide example queries for agricultural data
+- Store training data locally in ChromaDB
+- Launch an interactive query interface
 
 ## Database Schema
 

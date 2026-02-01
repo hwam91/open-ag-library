@@ -13,3 +13,14 @@ ENV/
 *.db
 *.sqlite3
 .DS_Store
+
+# Vanna ChromaDB storage
+vanna_chromadb/
+
+# Schema analysis output
+schema_analysis.json
+
+# FAOSTAT data files (too large for git)
+FAOSTAT_A-S_E/*.zip
+FAOSTAT_T-Z_E/*.zip
+*.csv
