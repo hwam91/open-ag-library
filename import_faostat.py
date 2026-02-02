@@ -269,12 +269,30 @@ def main():
     zip_files = find_all_zip_files()
     logger.info(f"Found {len(zip_files)} zip files to process")
 
+    # Get list of already imported datasets
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT dataset_code FROM faostat_data")
+    already_imported = set(row[0] for row in cursor.fetchall())
+    cursor.close()
+    conn.close()
+
+    logger.info(f"Already imported datasets: {len(already_imported)}")
+    if already_imported:
+        logger.info(f"Will skip: {', '.join(sorted(already_imported))}")
+
     # Process each zip file
     for i, zip_file in enumerate(zip_files, 1):
-        logger.info(f"Processing file {i}/{len(zip_files)}: {zip_file}")
         try:
             # Get proper dataset code from metadata
             dataset_code = get_dataset_code_from_filename(zip_file, datasets)
+
+            # Skip if already imported
+            if dataset_code in already_imported:
+                logger.info(f"Skipping {i}/{len(zip_files)}: {os.path.basename(zip_file)} (dataset {dataset_code} already imported)")
+                continue
+
+            logger.info(f"Processing file {i}/{len(zip_files)}: {zip_file}")
             logger.info(f"Dataset code: {dataset_code}")
             process_zip_file(zip_file, dataset_code=dataset_code)
         except Exception as e:
